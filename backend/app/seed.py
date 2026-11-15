@@ -161,7 +161,7 @@ def seed() -> None:
             tenant_id=tenant_id,
             email=DEMO_OWNER_EMAIL,
             password_hash=password_hash,
-            full_name="Daniela Rojas",
+            full_name="Juan Pérez",
             role="owner",
         )
         agent = User(
