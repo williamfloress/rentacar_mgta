@@ -35,6 +35,17 @@ es cuestión de horas.
    (`prepare_threshold=None`) que esos poolers no soportan.
 4. Asegúrate de que la cadena incluya `sslmode=require` (los proveedores suelen añadirlo).
 
+### 1b. Con la CLI de Neon (alternativa)
+
+`neon init --org-id <org> --project-id <proyecto>` enlaza el repositorio y escribe
+`.env.local` en la raíz (ignorado por git) con `DATABASE_URL` (pooled) y
+`DATABASE_URL_UNPOOLED` (directa). La API lo lee sola (`app/config.py`) y usa la directa
+para las migraciones. **Ojo:** esas URLs son del rol dueño (`neondb_owner`); para que RLS
+se aplique, la API debe acabar usando el rol restringido (pasos 2 y 4b).
+
+> Si tu red bloquea el puerto 5432 de salida (pasa con algunos proveedores y redes de
+> empresa), no podrás conectarte desde tu PC aunque las URLs sean correctas; Render sí podrá.
+
 ### 2. Entender los dos roles de base de datos (importante)
 
 La API usa **dos conexiones distintas**:

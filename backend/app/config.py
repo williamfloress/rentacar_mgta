@@ -7,11 +7,19 @@ definen como variables de entorno del servicio.
 
 from decimal import Decimal
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INSECURE_DEFAULT_KEY = "change-me-in-production"
+
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+# Archivos de entorno locales (si no existen se ignoran). El segundo tiene prioridad:
+#   backend/.env       -> configuración local escrita a mano (ver .env.example)
+#   <raíz>/.env.local  -> lo genera `neon init` con las conexiones del proyecto Neon
+# Las variables de entorno reales (Docker, Render, CI) siempre ganan a ambos archivos.
+_ENV_FILES = (_BACKEND_DIR / ".env", _BACKEND_DIR.parent / ".env.local")
 
 
 def _normalize_db_url(url: str) -> str:
@@ -27,7 +35,7 @@ def _normalize_db_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILES, extra="ignore")
 
     environment: str = "development"  # "production" activa comprobaciones extra
 
@@ -36,8 +44,13 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://rentacar:rentacar@localhost:5433/rentacar"
 
     # Opcional: conexión con permisos de dueño, solo para aplicar migraciones.
-    # Si no se define, las migraciones usan database_url.
-    migrations_database_url: str | None = None
+    # Si no se define, se usa DATABASE_URL_UNPOOLED (la conexión DIRECTA que
+    # escribe Neon: el DDL es más seguro sin pasar por el pooler) y, si tampoco
+    # existe, database_url.
+    migrations_database_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MIGRATIONS_DATABASE_URL", "DATABASE_URL_UNPOOLED"),
+    )
 
     secret_key: str = _INSECURE_DEFAULT_KEY  # firma los JWT
     access_token_expire_minutes: int = 60 * 8

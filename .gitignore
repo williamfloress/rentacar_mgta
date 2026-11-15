@@ -24,3 +24,5 @@ Thumbs.db
 
 # Notas personales del concepto original (app de escritorio en Java), no forman parte del proyecto
 info.txt
+.neon
+.env.local
