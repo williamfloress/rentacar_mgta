@@ -1,115 +1,118 @@
 # rent-a-CAR
 
-[![CI](https://github.com/OWNER/rent-a-CAR/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/rent-a-CAR/actions/workflows/ci.yml)
+[![CI](https://github.com/williamfloress/rentacar_mgta/actions/workflows/ci.yml/badge.svg)](https://github.com/williamfloress/rentacar_mgta/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 
-**Multi-tenant car rental management** — fleet, customers, bookings and business metrics for small rental agencies.
-Double bookings are **impossible by design**: PostgreSQL rejects them atomically, even under concurrent requests.
+**Aplicación web para que una agencia de alquiler de autos gestione su flota, sus clientes y sus reservas.**
+Muestra qué entregar hoy, qué debe volver y qué está atrasado, calcula precios y recargos, y resume los ingresos.
+Cada agencia accede únicamente a sus propios datos.
 
-🇪🇸 [Leer en español](README.es.md)
+🇬🇧 [Read in English](README.en.md)
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Panel principal](docs/screenshots/dashboard.png)
 
-> **Try it locally in one command:** `docker compose up --build` → open http://localhost:8080 and click
-> **“Demo como dueño”**. A demo agency with 6 months of history is created automatically.
+> **Demo en vivo:** https://rent-a-car-web.onrender.com
+> Pulsa **«Demo como dueño»**. Está en un plan gratuito: la primera carga puede tardar hasta un minuto.
+>
+> **En local con un comando:** `docker compose up --build` → http://localhost:8080
 
 ---
 
-## The problem
+## El problema
 
-Small, independent rental agencies often run on notebooks, spreadsheets and WhatsApp. The most expensive
-mistake in that setup is the **double booking**: promising the same car to two customers for overlapping dates.
-This project makes that mistake impossible rather than merely unlikely, and gives the front desk a clear view of
-what to hand over, what's due back, and what's overdue.
+Muchas agencias pequeñas e independientes llevan sus reservas en cuadernos, hojas de cálculo o WhatsApp. El error más
+caro en ese modelo es la **doble reserva**: prometer el mismo carro a dos clientes en fechas que se cruzan. Este
+proyecto hace que ese error sea imposible, no solo improbable, y le da al mostrador una vista clara de qué entregar,
+qué debe volver y qué está atrasado.
 
-## Technical highlights
+## Lo más interesante técnicamente
 
-| Decision | Why it matters |
+| Decisión | Por qué importa |
 |---|---|
-| **No-overlap guarantee lives in PostgreSQL** (`EXCLUDE USING gist` on a `daterange`) | Atomic. Neither two simultaneous requests nor an application bug can create a double booking. A test fires 8 concurrent requests and asserts exactly one wins. |
-| **Multi-tenancy with Row Level Security** *plus* explicit filters in code | Two independent locks: if one fails, an agency still can't read another's data. The API connects with a restricted role, because superusers silently bypass RLS. |
-| **Composite foreign keys** `(tenant_id, vehicle_id)` | A rental can't reference another agency's vehicle, by mistake or by attack. |
-| **Pure domain rules** (`backend/app/domain/`) | Pricing, late fees and the rental state machine don't import the framework and are unit-tested in milliseconds. |
-| **Money as `Decimal` end to end** | The API sends `"40.00"` as text; the frontend calculates in integer cents. No `0.1 + 0.2` surprises. |
-| **Security by design** | Argon2id, short-lived JWT, role read from the DB on every request (deactivation is instant), login rate limiting, append-only audit log, no user enumeration on login. |
-| **Honest engineering** | Every trade-off is documented with what was sacrificed. See [architecture & decisions](docs/01-arquitectura-y-decisiones.md) and [known technical debt](docs/04-roadmap.md#deuda-técnica-conocida). |
+| **El anti-solapamiento vive en PostgreSQL** (`EXCLUDE USING gist` sobre un `daterange`) | Es atómico: ni dos peticiones simultáneas ni un bug en la app pueden crear una doble reserva. Una prueba lanza 8 peticiones a la vez por el mismo carro y comprueba que gana exactamente una. |
+| **Multi-tenant con Row Level Security** + filtro explícito en el código | Dos candados independientes: aunque falle uno, una agencia no ve datos de otra. La API se conecta con un rol restringido, porque un superusuario se salta RLS sin avisar. |
+| **Claves foráneas compuestas** `(tenant_id, vehicle_id)` | Una reserva no puede apuntar a un vehículo de otra agencia, ni por error ni por ataque. |
+| **Reglas de negocio puras** (`backend/app/domain/`) | Precios, recargos y ciclo de vida no importan el framework y se prueban en milisegundos. |
+| **Dinero con `Decimal` de punta a punta** | La API envía `"40.00"` como texto y el frontend calcula en céntimos enteros. Sin sorpresas de `0.1 + 0.2`. |
+| **Seguridad desde el diseño** | Argon2id, JWT de vida corta, rol leído de la BD en cada petición (desactivar a alguien surte efecto al instante), límite de intentos de login, auditoría solo-añadir, sin filtrar qué emails existen. |
+| **Compromisos documentados** | Cada decisión explica qué se sacrificó. Ver [arquitectura y decisiones](docs/01-arquitectura-y-decisiones.md) y la [deuda técnica conocida](docs/04-roadmap.md#deuda-técnica-conocida). |
 
-## Features
+## Funcionalidades
 
-- **Dashboard** — vehicles available today, rentals in progress (with overdue alerts), pending pickups, monthly revenue, a 6-month revenue chart, and an agenda of upcoming pickups/returns with one-click actions.
-- **New rental flow** — pick dates → see *only* vehicles free for the whole period → pick or create a customer → confirm. The total is computed live; if someone else books the car meanwhile, the API returns `409` and the list refreshes.
-- **Rental lifecycle** — `reserved → active → returned` or `reserved → cancelled`, enforced by a state machine. A car can't be handed over before its start date; late returns are charged automatically.
-- **Fleet & customers** — search, filters, pagination, create/edit; deleting is owner-only, and records with history can't be deleted (vehicles can be retired instead).
-- **Fleet rules** — a vehicle with pending bookings can't be sent to maintenance; an unreturned (overdue) vehicle isn't offered as available.
-- **Team** — the owner creates agents and can deactivate them; the deactivated user's open session stops working immediately.
-- **Responsive, accessible UI** — keyboard-friendly native dialogs, labelled form fields, screen-reader table for the chart, works at phone width.
+- **Panel**: vehículos disponibles hoy, alquileres en curso (con alerta de atrasos), reservas por entregar, ingresos del mes, gráfico de 6 meses y agenda de entregas y devoluciones con acciones en un clic.
+- **Nuevo alquiler**: fechas → solo los vehículos libres en todo el periodo → cliente (o alta rápida) → confirmar. El total se calcula en vivo; si otra persona reserva ese carro mientras tanto, la API responde `409` y la lista se actualiza.
+- **Ciclo de vida**: `reservado → en curso → devuelto` o `reservado → cancelado`, impuesto por una máquina de estados. No se entrega antes de la fecha reservada y los retrasos generan recargo automático.
+- **Flota y clientes**: búsqueda, filtros, paginación, alta y edición. Borrar es solo del dueño, y lo que tiene historial no se borra (los vehículos se dan de baja).
+- **Reglas de flota**: un vehículo con reservas pendientes no pasa a taller, y uno con la devolución atrasada no se ofrece como disponible.
+- **Equipo**: el dueño crea agentes y puede desactivarlos; la sesión abierta del usuario desactivado deja de funcionar al instante.
+- **Interfaz responsive y accesible**: diálogos nativos usables con teclado, formularios etiquetados, versión en tabla del gráfico para lectores de pantalla, funciona en móvil.
 
 | | |
 |---|---|
-| ![New rental](docs/screenshots/new-rental.png) | ![Rentals](docs/screenshots/rentals.png) |
-| ![Login](docs/screenshots/login.png) | ![Fleet](docs/screenshots/fleet.png) |
+| ![Nuevo alquiler](docs/screenshots/new-rental.png) | ![Alquileres](docs/screenshots/rentals.png) |
+| ![Inicio de sesión](docs/screenshots/login.png) | ![Flota](docs/screenshots/fleet.png) |
 
-## Architecture
+## Arquitectura
 
 ```mermaid
 flowchart LR
-    U[Browser<br/>React + TypeScript] -->|HTTPS + JWT| A[FastAPI<br/>Docker]
-    A -->|restricted role<br/>SET app.tenant_id per transaction| D[(PostgreSQL)]
-    D -.->|RLS + EXCLUDE + composite FKs| D
+    U[Navegador<br/>React + TypeScript] -->|HTTPS + JWT| A[FastAPI<br/>Docker]
+    A -->|rol restringido<br/>SET app.tenant_id por transacción| D[(PostgreSQL)]
+    D -.->|RLS + EXCLUDE + FK compuestas| D
 ```
 
-| Layer | Stack |
+| Capa | Tecnologías |
 |---|---|
 | Backend | Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic v2, Argon2, PyJWT |
-| Database | PostgreSQL 16: `EXCLUDE` constraints, Row Level Security, composite FKs, triggers |
-| Frontend | React 19, TypeScript (strict), Vite, Tailwind CSS v4, TanStack Query, React Hook Form + Zod |
-| Quality | pytest (unit + integration against real PostgreSQL), SQL schema tests, Vitest + Testing Library, Ruff, ESLint |
-| Delivery | Docker (multi-stage, non-root), docker compose, GitHub Actions, Render blueprint |
+| Base de datos | PostgreSQL 16: restricciones `EXCLUDE`, Row Level Security, FK compuestas, triggers |
+| Frontend | React 19, TypeScript (estricto), Vite, Tailwind CSS v4, TanStack Query, React Hook Form + Zod |
+| Calidad | pytest (unitarias + integración contra PostgreSQL real), pruebas SQL del esquema, Vitest + Testing Library, Ruff, ESLint |
+| Entrega | Docker (multi-etapa, usuario sin privilegios), docker compose, GitHub Actions, Blueprint de Render |
 
 ```
 rent-a-CAR/
 ├── backend/
 │   ├── app/
-│   │   ├── domain/          # pure business rules: pricing, state machine, periods
-│   │   ├── routers/         # HTTP endpoints
-│   │   ├── availability.py  # single definition of "is this car busy?"
-│   │   ├── database.py      # connection + per-transaction tenant context for RLS
-│   │   ├── seed.py          # demo agency with 6 months of data
+│   │   ├── domain/          # reglas puras: precios, máquina de estados, periodos
+│   │   ├── routers/         # endpoints HTTP
+│   │   ├── availability.py  # única definición de "¿está ocupado este carro?"
+│   │   ├── database.py      # conexión + contexto de agencia por transacción (RLS)
+│   │   ├── seed.py          # agencia de demostración con 6 meses de datos
 │   │   └── …
-│   ├── migrations/          # Alembic + hand-written SQL schema (single source of truth)
-│   └── tests/               # unit tests + integration/ (real PostgreSQL) + sql/
+│   ├── migrations/          # Alembic + esquema SQL escrito a mano (fuente única de verdad)
+│   └── tests/               # unitarias + integration/ (PostgreSQL real) + sql/
 ├── frontend/src/
-│   ├── pages/               # dashboard, new rental, rentals, fleet, customers, team, auth
-│   ├── components/          # design-system primitives, layout, chart
-│   ├── api/hooks.ts         # data access (TanStack Query)
-│   └── lib/                 # API client, money in cents, timezone-safe dates
-├── docs/                    # decisions, data model, deployment, roadmap
-├── docker-compose.yml       # the whole stack, one command
-└── render.yaml              # deployment as code
+│   ├── pages/               # panel, nuevo alquiler, alquileres, flota, clientes, equipo, acceso
+│   ├── components/          # piezas de interfaz, layout, gráfico
+│   ├── api/hooks.ts         # acceso a datos (TanStack Query)
+│   └── lib/                 # cliente API, dinero en céntimos, fechas sin desfase horario
+├── docs/                    # decisiones, modelo de datos, despliegue, roadmap
+├── docker-compose.yml       # todo el sistema con un comando
+└── render.yaml              # despliegue como código
 ```
 
-## Running it
+## Cómo ejecutarlo
 
-### Everything with Docker (recommended)
+### Todo con Docker (recomendado)
 
 ```bash
 docker compose up --build
 ```
 
-| Service | URL |
+| Servicio | URL |
 |---|---|
-| Web app | http://localhost:8080 — demo: `demo@rentacar.dev` / `demo-rentacar` (owner) or `agente@rentacar.dev` (agent) |
-| API docs (Swagger) | http://localhost:8000/docs |
-| PostgreSQL | `localhost:5433` (5433 to avoid clashing with a local PostgreSQL) |
+| Panel web | http://localhost:8080 — demo: `demo@rentacar.dev` / `demo-rentacar` (dueño) o `agente@rentacar.dev` (agente) |
+| API (Swagger) | http://localhost:8000/docs |
+| PostgreSQL | `localhost:5433` (5433 para no chocar con un PostgreSQL local) |
 
-### Development without Docker for the app
+### Desarrollo sin Docker para la app
 
 ```bash
-docker compose up -d db                      # just the database
+docker compose up -d db                      # solo la base de datos
 
 cd backend
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -123,43 +126,41 @@ npm install
 npm run dev                                  # http://localhost:5173
 ```
 
-## Testing
+## Pruebas
 
-| Suite | Command | What it covers |
+| Suite | Comando | Qué cubre |
 |---|---|---|
-| Backend unit + integration | `cd backend && pytest` | 66 tests. Integration tests create a **throwaway PostgreSQL database**, run the real Alembic migrations, and call the API through a **restricted DB role** so RLS is actually enforced. Includes the concurrency test, tenant isolation, roles, lifecycle, late fees, pagination, rate limiting. |
-| SQL schema guarantees | `PGHOST=localhost PGPORT=5433 PGUSER=rentacar PGPASSWORD=rentacar bash scripts/test_schema.sh` | 12 checks run directly in SQL: overlaps rejected, back-to-back allowed, RLS read/write isolation, composite FKs, append-only audit log. |
-| Frontend | `cd frontend && npm test` | Money in cents, timezone-safe dates, error translation, login form behavior. |
-| Lint & types | `ruff check . && ruff format --check .` · `npm run lint && npm run typecheck` | Ruff includes security rules (bandit). TypeScript runs in strict mode. |
+| Backend: unitarias + integración | `cd backend && pytest` | 66 pruebas. Las de integración crean una **base PostgreSQL temporal**, aplican las migraciones reales con Alembic y llaman a la API con un **rol restringido** para que RLS se aplique de verdad. Incluyen la prueba de concurrencia, el aislamiento entre agencias, roles, ciclo de vida, recargos, paginación y límite de intentos. |
+| Garantías del esquema SQL | `PGHOST=localhost PGPORT=5433 PGUSER=rentacar PGPASSWORD=rentacar bash scripts/test_schema.sh` | 12 comprobaciones directamente en SQL: solapamientos rechazados, alquileres consecutivos permitidos, aislamiento RLS de lectura y escritura, FK compuestas, auditoría inmodificable. |
+| Frontend | `cd frontend && npm test` | Dinero en céntimos, fechas sin desfase de zona horaria, traducción de errores, formulario de login. |
+| Lint y tipos | `ruff check . && ruff format --check .` · `npm run lint && npm run typecheck` | Ruff incluye reglas de seguridad (bandit). TypeScript en modo estricto. |
 
-All of the above runs in **GitHub Actions** on every push, against a real PostgreSQL service. If the database
-isn't reachable in CI, the integration tests fail rather than silently skip.
+Todo lo anterior se ejecuta en **GitHub Actions** en cada *push*, contra un servicio PostgreSQL real. Si en la CI no
+hubiera base de datos, las pruebas de integración fallan en vez de omitirse en silencio.
 
-## API at a glance
+## API de un vistazo
 
-| Resource | Endpoints | Who |
+| Recurso | Endpoints | Quién |
 |---|---|---|
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | public (rate-limited) / authenticated |
-| Team | `GET/POST /users`, `POST /users/{id}/deactivate` | owner |
-| Vehicles | `GET/POST /vehicles`, `GET /vehicles/available`, `GET/PATCH/DELETE /vehicles/{id}` | agent; delete: owner |
-| Customers | `GET/POST /customers`, `GET/PATCH/DELETE /customers/{id}` | agent; delete: owner |
-| Rentals | `GET/POST /rentals`, `GET /rentals/{id}`, `POST /rentals/{id}/status` | agent |
-| Dashboard | `GET /dashboard/summary`, `/dashboard/agenda`, `/dashboard/revenue` | agent |
-| Health | `GET /health`, `GET /health/db` | public |
+| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | público (con límite de intentos) / autenticado |
+| Equipo | `GET/POST /users`, `POST /users/{id}/deactivate` | solo dueño |
+| Vehículos | `GET/POST /vehicles`, `GET /vehicles/available`, `GET/PATCH/DELETE /vehicles/{id}` | agente; borrar: dueño |
+| Clientes | `GET/POST /customers`, `GET/PATCH/DELETE /customers/{id}` | agente; borrar: dueño |
+| Alquileres | `GET/POST /rentals`, `GET /rentals/{id}`, `POST /rentals/{id}/status` | agente |
+| Panel | `GET /dashboard/summary`, `/dashboard/agenda`, `/dashboard/revenue` | agente |
+| Salud | `GET /health`, `GET /health/db` | público |
 
-Lists support `limit`/`offset` and return the total in the `X-Total-Count` header.
+Los listados aceptan `limit`/`offset` y devuelven el total en la cabecera `X-Total-Count`.
 
-## Deployment
+## Despliegue
 
-Free-tier deployment (Render + Neon/Supabase) is described step by step in
-[docs/03-despliegue-gratuito.md](docs/03-despliegue-gratuito.md), including the two-role database setup that keeps
-RLS effective in production. `render.yaml` defines both the API and the static web app.
+El despliegue gratuito (Render + Neon) está explicado paso a paso en
+[docs/03-despliegue-gratuito.md](docs/03-despliegue-gratuito.md), incluida la configuración de dos roles de base de
+datos que mantiene RLS efectivo en producción. `render.yaml` define tanto la API como el sitio web estático.
 
-## Documentation
+## Documentación
 
-1. [Architecture & decisions](docs/01-arquitectura-y-decisiones.md): every choice with its trade-off
-2. [Data model](docs/02-modelo-de-datos.md)
-3. [Free deployment](docs/03-despliegue-gratuito.md)
-4. [Roadmap & known technical debt](docs/04-roadmap.md)
-
-*Docs are written in Spanish; the code and API are in English.*
+1. [Arquitectura y decisiones](docs/01-arquitectura-y-decisiones.md): cada elección con su compromiso
+2. [Modelo de datos](docs/02-modelo-de-datos.md)
+3. [Despliegue gratuito](docs/03-despliegue-gratuito.md)
+4. [Roadmap y deuda técnica](docs/04-roadmap.md)
