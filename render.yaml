@@ -1,0 +1,46 @@
+# "Blueprint" de Render: describe el servicio como código (infraestructura como código).
+# Al conectar el repositorio, Render crea el servicio leyendo este archivo.
+# Verifica los nombres de los campos en la documentación de Render antes de usarlo:
+# su formato puede cambiar con el tiempo (https://render.com/docs/blueprint-spec).
+services:
+  - type: web
+    name: rent-a-car-api
+    runtime: docker
+    plan: free                      # el plan gratuito se duerme tras 15 min sin tráfico
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health        # NO consulta la base de datos (ver app/main.py)
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true         # Render genera un valor aleatorio seguro
+      - key: DATABASE_URL           # URL del rol RESTRINGIDO (rentacar_app) en Neon/Supabase
+        sync: false                 # "sync: false" = lo pegas tú en el panel; no se guarda en git
+      - key: MIGRATIONS_DATABASE_URL  # URL del rol dueño, solo para migraciones
+        sync: false
+      - key: CORS_ORIGINS           # URL de tu frontend, p. ej. https://rent-a-car.vercel.app
+        sync: false
+      - key: TIMEZONE
+        value: America/Caracas
+      - key: SEED_DEMO              # demo pública: recrea la agencia de ejemplo en cada arranque
+        value: "true"
+
+  # Panel web (React). Un sitio estático no se duerme y no consume horas del plan.
+  - type: web
+    name: rent-a-car-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite               # SPA: todas las rutas sirven index.html
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+    envVars:
+      - key: VITE_API_URL           # URL pública de la API, p. ej. https://rent-a-car-api.onrender.com
+        sync: false

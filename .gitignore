@@ -1,0 +1,26 @@
+# Secretos
+.env
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+pytest-cache-files-*/
+
+# Node / frontend
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Editor / sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Notas personales del concepto original (app de escritorio en Java), no forman parte del proyecto
+info.txt

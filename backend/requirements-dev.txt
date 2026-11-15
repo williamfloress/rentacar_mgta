@@ -1,0 +1,5 @@
+# Herramientas de desarrollo y CI (además de las dependencias de producción).
+#   pip install -r requirements.lock -r requirements-dev.txt
+pytest>=8.0
+httpx>=0.27     # cliente que usa TestClient de FastAPI en las pruebas de integración
+ruff>=0.6       # linter + formateador

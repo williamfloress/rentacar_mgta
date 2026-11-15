@@ -1,0 +1,56 @@
+# Entorno local completo con UN comando:   docker compose up --build
+#   Panel web:      http://localhost:8080   (demo: demo@rentacar.dev / demo-rentacar)
+#   API (Swagger):  http://localhost:8000/docs
+#   PostgreSQL:     localhost:5433  (5433 en el host para no chocar con un PostgreSQL local)
+#
+# Detalle importante: se usan DOS roles de base de datos, igual que en producción.
+#   - rentacar      -> dueño/superusuario: SOLO aplica las migraciones.
+#   - rentacar_app  -> rol restringido: lo usa la API. Al no ser superusuario ni
+#                      BYPASSRLS, Row Level Security SÍ se aplica (si la API usara el
+#                      superusuario, RLS quedaría desactivado sin avisar).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rentacar
+      POSTGRES_PASSWORD: rentacar
+      POSTGRES_DB: rentacar
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Los .sql de esta carpeta se ejecutan UNA vez, al crear la base por primera vez.
+      - ./scripts/create_app_role.sql:/docker-entrypoint-initdb.d/10-create-app-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentacar -d rentacar"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg://rentacar_app:rentacar_app_dev@db:5432/rentacar
+      MIGRATIONS_DATABASE_URL: postgresql+psycopg://rentacar:rentacar@db:5432/rentacar
+      SECRET_KEY: solo-para-desarrollo-local-cambia-esto-0123456789abcdef
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      SEED_DEMO: "true"   # crea la agencia demo (demo@rentacar.dev / demo-rentacar)
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

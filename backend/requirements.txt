@@ -1,0 +1,16 @@
+# Dependencias de producción (rangos mínimos).
+# Tras la primera instalación exitosa, genera un archivo con versiones EXACTAS:
+#     pip freeze > requirements.lock
+# y úsalo en el Dockerfile para que las construcciones sean reproducibles.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0.30
+psycopg[binary]>=3.2         # driver de PostgreSQL (incluye libpq: no requiere compilar nada)
+alembic>=1.13
+pydantic>=2.7
+pydantic-settings>=2.3
+email-validator>=2.1         # necesario para el tipo EmailStr de Pydantic
+argon2-cffi>=23.1            # hash de contraseñas (Argon2id)
+PyJWT>=2.8
+python-multipart>=0.0.9      # necesario para el formulario de login (OAuth2PasswordRequestForm)
+tzdata>=2024.1               # base de zonas horarias (la imagen "slim" de Docker no la trae)
